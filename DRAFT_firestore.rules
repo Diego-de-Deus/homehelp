@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Phase 0: Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitives
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isVerifiedUser() { return isSignedIn() && request.auth.token.email_verified == true; }
+
+    // Phase 2: Schema Helpers
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'role']) &&
+             data.uid == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.role in ['client', 'pro'] &&
+             (data.get('age', null) == null || data.age is string) &&
+             (data.get('city', null) == null || data.city is string) &&
+             (data.get('phone', null) == null || data.phone is string);
+    }
+
+    function isValidRequest(data) {
+      return data.clientId == request.auth.uid &&
+             data.category is string &&
+             data.description is string && data.description.size() <= 2000 &&
+             data.status in ['pending', 'accepted', 'completed', 'cancelled'];
+    }
+
+    // Collection Rules
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid; // Secure query
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUser(incoming()) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'age', 'city', 'phone', 'bio', 'avatar']);
+    }
+
+    match /requests/{requestId} {
+      allow get: if isSignedIn() && isValidId(requestId);
+      allow list: if isSignedIn(); // Prospective workers need to see all pending jobs
+      allow create: if isVerifiedUser() && isValidId(requestId) && isValidRequest(incoming());
+      allow update: if isSignedIn() && isValidId(requestId) && (
+        (isOwner(existing().clientId) && isValidRequest(incoming())) ||
+        (incoming().diff(existing()).affectedKeys().hasOnly(['status']))
+      );
+    }
+
+    match /chats/{chatId} {
+      function isParticipant() { return request.auth.uid in existing().participants; }
+      
+      allow get: if isSignedIn() && isValidId(chatId) && (request.auth.uid in resource.data.participants);
+      allow list: if isSignedIn() && (request.auth.uid in resource.data.participants);
+      allow create: if isSignedIn() && isValidId(chatId) && (request.auth.uid in incoming().participants) && incoming().participants.size() <= 10;
+      allow update: if isParticipant() && isValidId(chatId) && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastMessageAt']);
+
+      match /messages/{messageId} {
+        allow read: if isParticipant() && isValidId(messageId);
+        allow create: if isParticipant() && isValidId(messageId) && incoming().senderId == request.auth.uid && incoming().text is string && incoming().text.size() <= 1000;
+      }
+    }
+  }
+}

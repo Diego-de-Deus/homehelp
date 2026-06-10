@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile information for clients and professionals",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "avatar": { "type": "string" },
+        "role": { "type": "string", "enum": ["client", "pro"] },
+        "age": { "type": "string" },
+        "city": { "type": "string" },
+        "profession": { "type": "string" },
+        "phone": { "type": "string" },
+        "bio": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "role"]
+    },
+    "ServiceRequest": {
+      "title": "Service Request",
+      "description": "A job request created by a client",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "urgency": { "type": "string", "enum": ["low", "normal", "high"] },
+        "date": { "type": "string" },
+        "address": { "type": "string" },
+        "price": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "completed", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientId", "category", "description", "status"]
+    },
+    "Chat": {
+      "title": "Chat Session",
+      "description": "A conversation between a client and a pro",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "participants": { "type": "array", "items": { "type": "string" } },
+        "lastMessage": { "type": "string" },
+        "lastMessageAt": { "type": "string", "format": "date-time" },
+        "requestId": { "type": "string" }
+      },
+      "required": ["participants"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A single message in a chat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles"
+    },
+    "/requests/{requestId}": {
+      "schema": "ServiceRequest",
+      "description": "Collection of service requests"
+    },
+    "/chats/{chatId}": {
+      "schema": "Chat",
+      "description": "Collection of chat sessions"
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Subcollection of messages within a chat"
+    }
+  }
+}
